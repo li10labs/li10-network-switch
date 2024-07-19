@@ -1,0 +1,44 @@
+stages:
+- deploy-infra
+
+.common:
+  before_script:
+    - echo "common script"
+    - yum install -y python pip
+    - python --version
+    - pip --version
+    - yum install -y aws-cli
+    - aws --version
+    - yum install -y nodejs
+    - node --version
+    - npm install -g aws-cdk
+    - cdk --version
+
+    - eval aws configure set aws_access_key_id \$${MyEnv}_AWS_ACCESS_KEY_ID
+    - eval aws configure set aws_secret_access_key \$${MyEnv}_AWS_SECRET_ACCESS_KEY
+    - eval aws configure set default.region eu-west-3
+    - aws sts get-caller-identity
+
+deploy-infra:
+  stage: deploy-infra
+  image: amazonlinux:2023
+  extends: .common
+  variables:
+    MyEnv: dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: manual
+  script:
+    - cd infra
+    - python -m pip install -r requirements.txt
+
+    - echo sha= ${CI_COMMIT_SHA}
+    - echo url= ${CI_PROJECT_ROOT_NAMESPACE} ${CI_PROJECT_NAME}
+    - echo id=  ${CI_JOB_ID}
+
+    - export SHA=${CI_COMMIT_SHA}
+    - export GIT=${CI_PROJECT_ROOT_NAMESPACE}/${CI_PROJECT_NAME}
+    - export JOB=${CI_JOB_ID}
+
+    - cdk deploy --require-approval=never --all
